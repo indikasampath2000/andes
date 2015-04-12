@@ -469,8 +469,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.3.2</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.8</source>
+                    <target>1.8</target>
                 </configuration>
             </plugin>
             <!-- surefire plugin configuration -->
@@ -531,7 +531,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <carbon.kernel.version>4.3.0</carbon.kernel.version>
+        <carbon.kernel.version>4.4.0</carbon.kernel.version>
         <project.scm.id>my-scm-server</project.scm.id>
         <andes.version>2.5.0</andes.version>
         <commons-cli.version>1.0</commons-cli.version>
