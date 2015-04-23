@@ -107,7 +107,7 @@
             <artifactId>geronimo-jms_1.1_spec</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.hectorclient</groupId>
+            <groupId>org.hectorclient.wso2</groupId>
             <artifactId>hector-core</artifactId>
         </dependency>
         <dependency>

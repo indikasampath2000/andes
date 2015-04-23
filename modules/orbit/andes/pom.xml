@@ -165,7 +165,7 @@
                             com.datastax.cassandra.*;version="2.1.3",
                             com.google.common.util.concurrent;version="[14.0,15)",
                             org.wso2.carbon.andes.authentication.andes,
-                            me.prettyprint.hector.api.*;version="(1.1.4,2.0]",
+                            me.prettyprint.hector.api.*;version="1.1.4.wso2v1",
                             *;resolution:=optional
                         </Import-Package>
                         <Embed-Dependency>
