@@ -18,6 +18,8 @@
 package org.wso2.andes.mqtt;
 
 import org.wso2.andes.kernel.AndesException;
+import org.wso2.andes.kernel.SubscriptionAlreadyExistsException;
+import org.wso2.andes.kernel.distruptor.inbound.PubAckHandler;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
@@ -28,7 +30,7 @@ import java.util.UUID;
  */
 public interface MQTTConnector {
     /**
-     * The acked messages will be informed to the kernal
+     * The acked messages will be informed to the kernel
      *
      * @param messageID   the identifier of the message
      * @param topicName   the name of the topic the message was published
@@ -39,22 +41,24 @@ public interface MQTTConnector {
             throws AndesException;
 
     /**
-     * Will add the message content which will be recived
+     * Will add the message content which will be received
      *
      * @param message            the content of the message which was published
      * @param topic              the name of the topic which the message was published
      * @param qosLevel           the level of the qos the message was published
      * @param mqttLocalMessageID the channel id the subscriber is bound to
      * @param retain             whether the message requires to be persisted
-     * @param publisherID        the id which will uniquely identify the publisher
-     * @throws MQTTException occurs if there was an errro while adding the message content
+     * @param publisherID        the id which will identify the publisher
+     * @param pubAckHandler      interface with publisher acknowledgement handling
+     * @throws MQTTException occurs if there was an error while adding the message content
      */
     public void addMessage(ByteBuffer message, String topic, int qosLevel,
-                           int mqttLocalMessageID, boolean retain, UUID publisherID) throws MQTTException;
+                           int mqttLocalMessageID, boolean retain,
+                           String publisherID, PubAckHandler pubAckHandler) throws MQTTException;
 
 
     /**
-     * Will add and indicate the subscription to the kernal the bridge will be provided as the channel
+     * Will add and indicate the subscription to the kernel the bridge will be provided as the channel
      * since per topic we will only be creating one channel with andes
      *
      * @param channel               the bridge connection as the channel
@@ -63,23 +67,48 @@ public interface MQTTConnector {
      * @param mqttClientID          the subscription id which is local to the subscriber
      * @param isCleanSesion         should the connection be durable
      * @param qos                   the subscriber specific qos this can be either 0,1 or 2
-     * @param subscriptionChannelID will hold the unique idenfier of the subscription
+     * @param subscriptionChannelID will hold the unique identifier of the subscription
      * @throws MQTTException
      */
     public void addSubscriber(MQTTopicManager channel, String topic, String clientID, String mqttClientID,
-                              boolean isCleanSesion, int qos, UUID subscriptionChannelID) throws MQTTException;
+                              boolean isCleanSesion, int qos, UUID subscriptionChannelID) throws MQTTException,
+            SubscriptionAlreadyExistsException;
 
 
     /**
-     * Will trigger when subscriber disconnets from the session
+     * Will trigger when subscriber sends a un subscription message
      *
-     * @param channel               the connection refference to the bridge
+     * @param channel               the connection reference to the bridge
      * @param subscribedTopic       the topic the subscription disconnection should be made
-     * @param subscriptionChannelID the channel id of the diconnection client
-     * @param subscriberChannel     the cluster wide unique idenfication of the subscription
-     * @param isCleanSession        Durability of the subscription
+     * @param subscriptionChannelID the channel id of the disconnected client
+     * @param subscriberChannel     the cluster wide unique identification of the subscription
+     * @param isCleanSession        durability of the subscription
+     * @param mqttClientID          the id of the client who subscribed to the topic
+     * @throws MQTTException
      */
     public void removeSubscriber(MQTTopicManager channel, String subscribedTopic, String subscriptionChannelID,
                                  UUID subscriberChannel, boolean isCleanSession, String mqttClientID)
             throws MQTTException;
+
+    /**
+     * Will trigger the subscription disconnect event
+     *
+     * @param channel               the connection reference to the bridge
+     * @param subscribedTopic       the topic the subscription disconnection should be made
+     * @param subscriptionChannelID the channel id of the disconnected client
+     * @param subscriberChannel     the cluster wide unique identification of the subscription
+     * @param isCleanSession        durability of the subscription
+     * @param mqttClientID          the id of the client who subscribed to the topic
+     * @throws MQTTException
+     */
+    public void disconnectSubscriber(MQTTopicManager channel, String subscribedTopic, String subscriptionChannelID,
+                                     UUID subscriberChannel, boolean isCleanSession, String mqttClientID)
+            throws MQTTException;
+
+    /**
+     * Removes the publisher
+     * @param mqttClientChannelID publisher id (local id) of the publisher to be removed
+     * @return UUID of the publisher. Unique id for the publisher in the cluster
+     */
+    public UUID removePublisher(String mqttClientChannelID);
 }

@@ -26,6 +26,8 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
+import org.wso2.andes.configuration.AndesConfigurationManager;
+import org.wso2.andes.configuration.enums.AndesConfiguration;
 import org.wso2.andes.server.cluster.coordination.hazelcast.HazelcastAgent;
 import org.wso2.andes.kernel.slot.ConnectionException;
 import org.wso2.andes.kernel.slot.Slot;
@@ -181,6 +183,29 @@ public class MBThriftClient {
     }
 
     /**
+     * Delete all in-memory slot associations with a given queue. This is required to handle a queue purge event.
+     *
+     * @param queueName name of destination queue
+     * @throws ConnectionException
+     */
+    public static synchronized void clearAllActiveSlotRelationsToQueue(String queueName) throws ConnectionException {
+
+        try {
+            client = getServiceClient();
+            client.clearAllActiveSlotRelationsToQueue(queueName);
+        } catch (TException e) {
+            try {
+                //retry to do the operation once
+                reConnectToServer();
+                client.clearAllActiveSlotRelationsToQueue(queueName);
+            } catch (TException e1) {
+                handleCoordinatorChanges();
+                throw new ConnectionException("Coordinator has changed", e);
+            }
+        }
+    }
+
+    /**
      * Returns an instance of Slot Management service client which is used to communicate to the
      * thrift server. If it does not succeed in connecting to the server, it throws a  TTransportException
      *
@@ -215,7 +240,7 @@ public class MBThriftClient {
      */
     private static void handleCoordinatorChanges() {
         resetServiceClient();
-        if (isReconnectingStarted()) {
+        if (!isReconnectingStarted()) {
             setReconnectingFlag(true);
         }
         startServerReconnectingThread();
@@ -236,16 +261,23 @@ public class MBThriftClient {
      * @throws TTransportException when connecting to thrift server is unsuccessful
      */
     private static void reConnectToServer() throws TTransportException {
-        HazelcastAgent hazelcastAgent = HazelcastAgent.getInstance();
-        String thriftCoordinatorServerIP = hazelcastAgent.getThriftServerDetailsMap().get(
-                SlotCoordinationConstants.THRIFT_COORDINATOR_SERVER_IP);
-        int thriftCoordinatorServerPort = Integer.parseInt(
-                hazelcastAgent.getThriftServerDetailsMap().
-                        get(SlotCoordinationConstants.THRIFT_COORDINATOR_SERVER_PORT));
-        transport = new TSocket(thriftCoordinatorServerIP, thriftCoordinatorServerPort);
-        log.info("Reconnecting to Slot Coordinator " + thriftCoordinatorServerIP + ":"
-                 + thriftCoordinatorServerPort);
+        int thriftCoordinatorServerPort = 0;
+        String thriftCoordinatorServerIP = null;
+        Long reconnectTimeout = (Long) AndesConfigurationManager.readValue
+                (AndesConfiguration.COORDINATOR_THRIFT_RECONNECT_TIMEOUT) * 1000;
         try {
+            //Reconnect timeout set because Hazelcast coordinator may still not elected in failover scenario
+            Thread.sleep(reconnectTimeout);
+            HazelcastAgent hazelcastAgent = HazelcastAgent.getInstance();
+            thriftCoordinatorServerIP = hazelcastAgent.getThriftServerDetailsMap().get(
+                    SlotCoordinationConstants.THRIFT_COORDINATOR_SERVER_IP);
+            thriftCoordinatorServerPort = Integer.parseInt(
+                    hazelcastAgent.getThriftServerDetailsMap().
+                            get(SlotCoordinationConstants.THRIFT_COORDINATOR_SERVER_PORT));
+            transport = new TSocket(thriftCoordinatorServerIP, thriftCoordinatorServerPort);
+            log.info("Reconnecting to Slot Coordinator " + thriftCoordinatorServerIP + ":"
+                    + thriftCoordinatorServerPort);
+
             transport.open();
             TProtocol protocol = new TBinaryProtocol(transport);
             client = new SlotManagementService.Client(protocol);
@@ -255,6 +287,7 @@ public class MBThriftClient {
             throw new TTransportException(
                     "Could not connect to the Thrift Server " + thriftCoordinatorServerIP + ":" +
                             thriftCoordinatorServerPort, e);
+        } catch (InterruptedException ignore) {
         }
     }
 

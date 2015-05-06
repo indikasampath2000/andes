@@ -21,14 +21,18 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.dna.mqtt.wso2.AndesMQTTBridge;
 import org.wso2.andes.kernel.AndesException;
+import org.wso2.andes.kernel.SubscriptionAlreadyExistsException;
+import org.wso2.andes.kernel.distruptor.inbound.PubAckHandler;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.dna.mqtt.wso2.AndesMQTTBridge.*;
+
 /**
- * Will manage and hold topic informaton,
+ * Will manage and hold topic information,
  * this class will be declared as singleton since the state of the topics will be
  * preserved here, all the operations relational to a topic will go through this.
  */
@@ -46,23 +50,20 @@ public class MQTTopicManager {
     //The map will be used when subscriber disconnection is called where the corresponding topic needs to be identified
     //The key of the map will be the client id and the value will be the topic
     private Map<String, String> subscriberTopicCorrelate = new HashMap<String, String>();
-    //Will maintain the relation between the publisher client identifiers vs the id generated cluster wide
-    //Key of the map would be the mqtt specific client id and the value would be the cluser uuid
-    private Map<String, UUID> publisherTopicCorrelate = new HashMap<String, UUID>();
     //The channel reference which will be used to interact with the Andes Kernal
     private MQTTConnector distributedStore = new DistributedStoreConnector();
 
 
     /**
-     * The class will be declared as singleton since the state will be cenrtaized
+     * The class will be declared as singleton since the state will be centralized
      */
     private MQTTopicManager() {
     }
 
     /**
-     * All cenralized instance will be taken for
+     * All centralized instance will be taken for
      *
-     * @return the instance which will hold all relevent topic information
+     * @return the instance which will hold all relevant topic information
      */
     public static MQTTopicManager getInstance() {
         return instance;
@@ -71,7 +72,7 @@ public class MQTTopicManager {
     /**
      * Will initialize the bridge which will connect with the MQTT protocol handler
      *
-     * @param mqttAndesConnection connectin
+     * @param mqttAndesConnection connection
      * @throws MQTTException will invalidate if attempted to initialize more than once
      */
     public void initProtocolEngine(AndesMQTTBridge mqttAndesConnection) throws MQTTException {
@@ -94,30 +95,26 @@ public class MQTTopicManager {
      * @param message            the message content
      * @param retain             whether the message should retain
      * @param mqttLocalMessageID the channel in which the message was published
-     * @param publisherID        identify of the publisher which is unique across the cluser
-     * @throws MQTTException at a time where the message content doen't get registered
+     * @param publisherID        identify of the publisher which is unique across the cluster
+     * @param pubAckHandler      publisher acknowledgments are handled by this handler
+     * @throws MQTTException at a time where the message content doesn't get registered
      */
     public void addTopicMessage(String topic, int qosLevel, ByteBuffer message, boolean retain,
-                                int mqttLocalMessageID, String publisherID) throws MQTTException {
+                                int mqttLocalMessageID, String publisherID,
+                                PubAckHandler pubAckHandler) throws MQTTException {
 
         if (log.isDebugEnabled()) {
             log.debug("Incoming message received with id : " + mqttLocalMessageID + ", QOS level : " + qosLevel
                     + ", for topic :" + topic + ", with retain :" + retain);
         }
 
-        UUID publisherClusterID = publisherTopicCorrelate.get(publisherID);
-        if (null == publisherClusterID) {
-            //We need to generate a uuid
-            publisherClusterID = UUID.randomUUID();
-            publisherTopicCorrelate.put(publisherID, publisherClusterID);
-        }
         //Will add the topic message to the cluster for distribution
         try {
-            distributedStore.addMessage(message, topic, qosLevel, mqttLocalMessageID, retain, publisherClusterID);
+            distributedStore.addMessage(message, topic, qosLevel, mqttLocalMessageID,
+                    retain, publisherID, pubAckHandler);
         } catch (MQTTException e) {
             //Will need to rollback the state
-            publisherTopicCorrelate.remove(publisherID);
-            final String error = "Error occured while publishing the message";
+            final String error = "Error occurred while publishing the message";
             log.error(error, e);
             throw e;
         }
@@ -128,7 +125,7 @@ public class MQTTopicManager {
      * Will include the topic subscription to the list of topics maintained.
      *
      * @param topicName           the name of the topic the subscription is being registered for
-     * @param mqttClientChannelID the channel identitiy of the subscriber mainatained by the protocol reference
+     * @param mqttClientChannelID the channel identity of the subscriber maintained by the protocol reference
      * @param qos                 the level of QOS the message subscription was created the value can be wither 0,1 or 2
      * @param isCleanSession      indicates whether the subscription should be durable or not
      * @throws MQTTException if the subscriber addition was not successful
@@ -138,7 +135,7 @@ public class MQTTopicManager {
         //Will extract out the topic information if the topic is created already
         MQTTopic topic = topics.get(topicName);
         String subscriptionID = null;
-        //Will generate a uniqe identier for the subscription
+        //Will generate a unique identifier for the subscription
         final UUID subscriptionChannelID = MQTTUtils.generateSubscriptionChannelID(mqttClientChannelID, topicName,
                 qos, isCleanSession);
         //If the topic has not being created before
@@ -151,7 +148,7 @@ public class MQTTopicManager {
 
         } else {
             if (log.isDebugEnabled()) {
-                log.debug("The topic " + topic + "has local subsbscriptions already");
+                log.debug("The topic " + topic + "has local subscriptions already");
             }
         }
         //Will add the subscription to the topic
@@ -163,44 +160,54 @@ public class MQTTopicManager {
             topic.addSubscriber(mqttClientChannelID, qos, isCleanSession, subscriptionID, subscriptionChannelID);
             //Finally will register the the topic subscription for the topic
             subscriberTopicCorrelate.put(mqttClientChannelID, topicName);
+        } catch (SubscriptionAlreadyExistsException ignore) {
+            //We do not throw this any further, the process should not stop due to this
+            final String message = "Error while adding the subscriber to the cluster";
+            log.error(message, ignore);
         } catch (MQTTException ex) {
             //In case if an error occurs we need to rollback the subscription created cluster wide
             distributedStore.removeSubscriber(this, topicName, subscriptionID, subscriptionChannelID,
                     isCleanSession, mqttClientChannelID);
-            final String message = "Error while adding the subscriber to the cluser";
+            final String message = "Error while adding the subscriber to the cluster";
             log.error(message, ex);
             throw ex;
         }
     }
 
     /**
-     * Will be called during the event where the subscriber disconnection is triggered
+     * Will be called during the event where the subscriber disconnection or un-subscription is triggered
      *
      * @param mqttClientChannelID the id of the channel which the subscriber is bound to
+     * @param action              describes whether its a disconnection or an un-subscription
      * @throws MQTTException occurs if the subscriber was not disconnected properly
      */
-    public void removeTopicSubscription(String mqttClientChannelID) throws MQTTException {
+    public void removeOrDisconnectTopicSubscription(String mqttClientChannelID, SubscriptionEvent action)
+            throws MQTTException {
         //First the topic name will be taken from the subscriber channel
-        //TODO what if the node crashes at this point the state will be lost before disconnection
-        //TODO check if there're pending messages that are awaiting for acks
         String topic = subscriberTopicCorrelate.get(mqttClientChannelID);
-        //If the topic has correlators
+        //If the topic has correlations
         if (null != topic) {
             //Will get the corresponding topic
             MQTTopic mqttTopic = topics.get(topic);
 
             if (null != mqttTopic) {
-                //Will remove the subscription entitiy
+                //Will remove the subscription entity
                 MQTTSubscriber subscriber = mqttTopic.removeSubscriber(mqttClientChannelID);
                 String subscriberChannelID = subscriber.getSubscriberChannelID();
                 UUID subscriberChannel = subscriber.getSubscriptionChannel();
                 boolean isCleanSession = subscriber.isCleanSession();
                 //The corresponding subscription created cluster wide will be topic name and the local channel id
-                //Will remove the subscriber clusterwide
+                //Will remove the subscriber cluster wide
                 try {
                     //Will indicate the disconnection of the topic
-                    distributedStore.removeSubscriber(this, topic, subscriberChannelID, subscriberChannel,
-                            isCleanSession, mqttClientChannelID);
+                    if (action == SubscriptionEvent.DISCONNECT) {
+                        distributedStore.disconnectSubscriber(this, topic, subscriberChannelID, subscriberChannel,
+                                isCleanSession, mqttClientChannelID);
+                    } else {
+                        //If un-subscribed we need to remove the subscription off
+                        distributedStore.removeSubscriber(this, topic, subscriberChannelID, subscriberChannel,
+                                isCleanSession, mqttClientChannelID);
+                    }
                     if (log.isDebugEnabled()) {
                         final String message = "Subscription with cluster id " + subscriberChannelID + " disconnected " +
                                 "from topic " + topic;
@@ -212,7 +219,7 @@ public class MQTTopicManager {
                 } catch (MQTTException ex) {
                     //Should re state the connection of the subscriber back to the map
                     mqttTopic.addSubscriber(mqttClientChannelID, subscriber);
-                    final String error = "Error occured while removing the subscription " + mqttClientChannelID;
+                    final String error = "Error occurred while removing the subscription " + mqttClientChannelID;
                     log.error(error, ex);
                     throw ex;
                 }
@@ -224,7 +231,7 @@ public class MQTTopicManager {
 
         } else {
             //If the connection is publisher based
-            UUID publisherID = publisherTopicCorrelate.remove(mqttClientChannelID);
+            UUID publisherID = distributedStore.removePublisher(mqttClientChannelID);
             if (null == publisherID) {
                 log.warn("A subscriber or a publisher with Connection with id " + mqttClientChannelID + " cannot be " +
                         "found to disconnect.");
@@ -237,7 +244,7 @@ public class MQTTopicManager {
      *
      * @param storageName   the topic the message was published that will be stored
      * @param message       the message content
-     * @param messageID     the idnetifier of the message
+     * @param messageID     the identifier of the message
      * @param publishedQOS  the level of qos the message was published
      * @param shouldRetain  whether the message should retain after it was published
      * @param subscriberQOS the level of QOS of the subscription
@@ -246,34 +253,34 @@ public class MQTTopicManager {
     public void distributeMessageToSubscriber(String storageName, ByteBuffer message, long messageID, int publishedQOS,
                                               boolean shouldRetain, String channelID, int subscriberQOS)
             throws MQTTException {
-        //Will generate a uniqe id, cannot force MQTT to have a long as the message id since the protocol looks for
+        //Will generate a unique id, cannot force MQTT to have a long as the message id since the protocol looks for
         //unsigned short
         int mqttLocalMessageID = 1;
         //Should get the topic name from the channel id
         String topic = subscriberTopicCorrelate.get(channelID);
         //We need to keep track of the message if the QOS level is > 0
         if (subscriberQOS > 0) {
-            //We need to add the message information to maintain state, inorder to identify the messages
+            //We need to add the message information to maintain state, in-order to identify the messages
             // once the acks receive
             MQTTopic mqttopic = topics.get(topic);
             MQTTSubscriber mqttSubscriber = mqttopic.getSubscription(channelID);
-            //There could be a situation where the message was published, but before it arrived to the subscirpion
+            //There could be a situation where the message was published, but before it arrived to the subscription
             //The subscriber has disconnected at a situation as such we have to indicate the disconnection
             if (null != mqttSubscriber) {
                 //Will mark the message as sent to subscribers
                 mqttLocalMessageID = mqttSubscriber.markSend(messageID);
-                //Will add the information that will be neccassary to process once the acks arrive
+                //Will add the information that will be necessary to process once the acks arrive
                 mqttSubscriber.setStorageIdentifier(storageName);
                 //Subscriber state will not be handled for the case of QoS 0, hence if the subscription has disconnected it
                 // will be handled from the protocol engine
-                AndesMQTTBridge.getBridgeInstance().distributeMessageToSubscriptions(topic, publishedQOS, message,
+                getBridgeInstance().distributeMessageToSubscriptions(topic, publishedQOS, message,
                         shouldRetain, mqttLocalMessageID, channelID);
             } else {
                 throw new MQTTException("The subscriber with id " + channelID +
-                        " has diconnected hence message will not be published to " + messageID);
+                        " has disconnected hence message will not be published to " + messageID);
             }
         } else {
-            AndesMQTTBridge.getBridgeInstance().distributeMessageToSubscriptions(topic, publishedQOS, message,
+            getBridgeInstance().distributeMessageToSubscriptions(topic, publishedQOS, message,
                     shouldRetain, mqttLocalMessageID, channelID);
         }
     }
@@ -282,16 +289,16 @@ public class MQTTopicManager {
      * Will trigger during the time where an ack was received for a message
      *
      * @param mqttChannelID the identifier of the channel
-     * @param messageID     the message id on which the ack was recievd
+     * @param messageID     the message id on which the ack was received
      */
     public void onMessageAck(String mqttChannelID, int messageID) throws MQTTException {
-        //Will retrive the topic
+        //Will retrieve the topic
         String topicName = subscriberTopicCorrelate.get(mqttChannelID);
-        //Will retrive the topic object out of the list
+        //Will retrieve the topic object out of the list
         MQTTopic mqttTopic = topics.get(topicName);
         //Will get the subscription object out of the topic
         MQTTSubscriber mqttSubscriber = mqttTopic.getSubscription(mqttChannelID);
-        //Will indicate that the ack was recived
+        //Will indicate that the ack was received
         long clusterID = mqttSubscriber.ackReceived(messageID);
         //First we need to get the subscription information
         messageAck(topicName, clusterID, mqttSubscriber.getStorageIdentifier(), mqttSubscriber.getSubscriptionChannel());
@@ -304,7 +311,7 @@ public class MQTTopicManager {
      * @param messageID    the id of the message the ack will be simulated for
      * @param storageName  the storage name representation
      * @param subChannelID the id of the subscription channel
-     * @throws MQTTException occurs if the ack was faled to process by the kernal
+     * @throws MQTTException occurs if the ack failed to be processed by the kernal
      */
     public void implicitAck(String topic, long messageID, String storageName, UUID subChannelID) throws MQTTException {
         messageAck(topic, messageID, storageName, subChannelID);
@@ -317,16 +324,15 @@ public class MQTTopicManager {
      * @param mqttClientID          the subscriber id which is local to the node
      * @param isCleanSession        should the subscription be identified as durable
      * @param qos                   the subscriber level qos
-     * @param subscriptionChannelID the unique identifer of the subscription channel
+     * @param subscriptionChannelID the unique identifier of the subscription channel
      * @return topic subscription id which will represent the topic in the cluster
      */
     private String registerTopicSubscriptionInCluster(String topicName, String mqttClientID, boolean isCleanSession,
                                                       int qos, UUID subscriptionChannelID)
-            throws MQTTException {
+            throws MQTTException, SubscriptionAlreadyExistsException {
         //Will generate a unique id for the client
         //Per topic only one subscription will be created across the cluster
-        String topicSpecificClientID = MQTTUtils.generateTopicSpecficClientID(mqttClientID, topicName, qos,
-                isCleanSession);
+        String topicSpecificClientID = MQTTUtils.generateTopicSpecficClientID(mqttClientID);
         if (log.isDebugEnabled()) {
             log.debug("Cluster wide topic connection was created with id " + topicSpecificClientID + " for topic " +
                     topicName + " with clean session " + isCleanSession);
@@ -340,10 +346,10 @@ public class MQTTopicManager {
     }
 
     /**
-     * When acknowledments arrive for the delivered messages this method will be called
+     * When acknowledgments arrive for the delivered messages this method will be called
      *
-     * @param topic       the name of the topic the ack was recived
-     * @param messageID   the id of the message the ack was recived
+     * @param topic       the name of the topic the ack was received
+     * @param messageID   the id of the message the ack was received
      * @param storageName the name of the representation of the topic in the store
      * @throws MQTTException at an event where the ack was not properly processed
      */

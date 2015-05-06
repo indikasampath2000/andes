@@ -28,33 +28,37 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 /**
- * This class will contain operations such as convertion of message which are taken from the protocol to be complient
- * with the objects expected by Andes, message id generation, construction of meta informaion,
+ * This class will contain operations such as conversion of message which are taken from the protocol to be compliant
+ * with the objects expected by Andes, message id generation, construction of meta information,
  */
 public class MQTTUtils {
 
     private static Log log = LogFactory.getLog(MQTTUtils.class);
-    private static final String MESSAGE_ID = "MessageID";
+    public static final String MESSAGE_ID = "MessageID";
     private static final String TOPIC = "Topic";
     private static final String DESTINATION = "Destination";
-    private static final String PERSISTENCE = "Persistant";
+    private static final String PERSISTENCE = "Persistent";
     private static final String MESSAGE_CONTENT_LENGTH = "MessageContentLength";
-    private static final String QOSLEVEL = "QOSLevel";
-    //This will be required to be at the initial byte stream the meta data will have since when the message is proccessed
-    //back from andes since the message relevency is checked ex :- whether its amqp, mqtt etc
+    public static final String QOSLEVEL = "QOSLevel";
+    //This will be required to be at the initial byte stream the meta data will have since when the message is processed
+    //back from andes since the message relevancy is checked ex :- whether its amqp, mqtt etc
     public static final String MQTT_META_INFO = "\u0002MQTT Protocol v3.1";
 
     public static final String SINGLE_LEVEL_WILDCARD = "+";
     public static final String MULTI_LEVEL_WILDCARD = "#";
 
+    /**
+     * MQTT Publisher ID
+     */
+    public static final String CLIENT_ID = "clientID";
 
     /**
-     * The pulished messages will be taken in as a byte stream, the mesage will be transformed into AndesMessagePart as
+     * The published messages will be taken in as a byte stream, the message will be transformed into AndesMessagePart as
      * its required by the Andes kernal for processing
      *
      * @param message  the message contents
      * @param messagID the message identifier
-     * @return AndesMessagePart which wrapps the message into a Andes kernal complient object
+     * @return AndesMessagePart which wraps the message into a Andes kernal compliant object
      */
     public static AndesMessagePart convertToAndesMessage(byte[] message, long messagID) {
         AndesMessagePart messageBody = new AndesMessagePart();
@@ -66,42 +70,31 @@ public class MQTTUtils {
     }
 
     /**
-     * Will generate a unique message idneitfier, this id will be unique cluster wide     *
-     *
-     * @return the unique message identifier
-     */
-    public static long generateMessageID() {
-        //Message ids will not be directly generated from the kernal since in future if there's a MQTT specific
-        //id generation mechanism
-        return Andes.getInstance().generateNewMessageId();
-    }
-
-    /**
      * The data about the message (meta information) will be constructed at this phase Andes requires the meta data as a
-     * byte stream, The method basically collects all the relevant information neccessary to construct the bytes stream
+     * byte stream, The method basically collects all the relevant information necessary to construct the bytes stream
      * and will convert the message into a bytes object
      *
      * @param metaData      the information about the published message
      * @param messageID     the identity of the message
      * @param topic         the topic the message was published
      * @param destination   the definition where the message should be sent to
-     * @param persistance   should this message be persisted
-     * @param contentLength the lengthe of the message content
+     * @param persistence   should this message be persisted
+     * @param contentLength the length of the message content
      * @param qos           the level of qos the message was published at
      * @return the collective information as a bytes object
      */
     public static byte[] encodeMetaInfo(String metaData, long messageID, boolean topic, int qos, String destination,
-                                        boolean persistance, int contentLength) {
+                                        boolean persistence, int contentLength) {
         byte[] metaInformation;
         String information = metaData + ":" + MESSAGE_ID + "=" + messageID + "," + TOPIC + "=" + topic +
-                "," + DESTINATION + "=" + destination + "," + PERSISTENCE + "=" + persistance
+                "," + DESTINATION + "=" + destination + "," + PERSISTENCE + "=" + persistence
                 + "," + MESSAGE_CONTENT_LENGTH + "=" + contentLength + "," + QOSLEVEL + "=" + qos;
         metaInformation = information.getBytes();
         return metaInformation;
     }
 
     /**
-     * Extract the message information and will generate the object which will be complient with the Andes kernal
+     * Extract the message information and will generate the object which will be compliant with the Andes kernal
      *
      * @param messageID            message identification
      * @param topic                name of topic
@@ -109,7 +102,7 @@ public class MQTTUtils {
      * @param messageContentLength the content length of the message
      * @param retain               should this message retain
      * @param publisherID          the uuid which will uniquely identify the publisher
-     * @return the meta information complient with the kernal
+     * @return the meta information compliant with the kernal
      */
     public static AndesMessageMetadata convertToAndesHeader(long messageID, String topic, int qosLevel,
                                                             int messageContentLength, boolean retain, UUID publisherID) {
@@ -149,7 +142,7 @@ public class MQTTUtils {
             throws AndesException {
         ByteBuffer message = ByteBuffer.allocate(content.getContentLength());
         try {
-            //offset value will always be set to 0 since mqtt doesn't support chunking the messsages, always the message
+            //offset value will always be set to 0 since mqtt doesn't support chunking the messages, always the message
             //will be in the first chunk but in AMQP there will be chunks
             final int mqttOffset = 0;
             content.putContent(mqttOffset, message);
@@ -162,26 +155,22 @@ public class MQTTUtils {
     }
 
     /**
-     * For each topic there will only be one subscriber connection cluster wide locally there can be multiple chnnels
+     * For each topic there will only be one subscriber connection cluster wide locally there can be multiple channels
      * bound. This method will generate a unique id for the subscription created per topic
      *
      * @param clientId The MQTT client Id
-     * @param topic The topic subscribed to
-     * @param qos The Quality of Service level subscribed to
-     * @param cleanSession Clean session value of the client
-     *
      * @return the unique identifier
      */
-    public static String generateTopicSpecficClientID(String clientId, String topic, int qos, boolean cleanSession) {
-        final String mqttSubscriptionID = "MQTTAndesSubscriber:";
-        return mqttSubscriptionID + clientId + topic + qos + cleanSession;
+    public static String generateTopicSpecficClientID(String clientId) {
+        final String mqttSubscriptionID = "carbon:";
+        return mqttSubscriptionID + clientId;
     }
 
     /**
-     * Will conver between the types of the QOS to adhere to the conversion of both andes and mqtt protocol
+     * Will convert between the types of the QOS to adhere to the conversion of both andes and mqtt protocol
      *
      * @param qos the quality of service level the message should be published/subscribed
-     * @return the level which is complient by the mqtt library
+     * @return the level which is compliment by the mqtt library
      */
     public static AbstractMessage.QOSType getMQTTQOSTypeFromInteger(int qos) {
         return AbstractMessage.QOSType.valueOf(qos);
@@ -230,11 +219,10 @@ public class MQTTUtils {
      * Generate a unique UUID for a given client who has subscribed to a given topic with given qos and given clean
      * session.
      *
-     * @param clientId The MQTT client Id
-     * @param topic The topic subscribed to
-     * @param qos The Quality of Service level subscribed to
+     * @param clientId     The MQTT client Id
+     * @param topic        The topic subscribed to
+     * @param qos          The Quality of Service level subscribed to
      * @param cleanSession Clean session value of the client
-     *
      * @return A unique UUID for the given arguments
      */
     public static UUID generateSubscriptionChannelID(String clientId, String topic, int qos, boolean cleanSession) {
