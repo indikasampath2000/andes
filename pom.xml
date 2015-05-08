@@ -130,7 +130,7 @@
                 <version>${geronimo-jms_1.1_spec.version}.wso2v1</version>
             </dependency>
             <dependency>
-                <groupId>org.hectorclient.wso2</groupId>
+                <groupId>org.hectorclient</groupId>
                 <artifactId>hector-core</artifactId>
                 <version>${hector-core.version}</version>
             </dependency>
@@ -557,7 +557,7 @@
         <commons-logging-api.version>1.1</commons-logging-api.version>
         <commons-pool.version>1.5.3</commons-pool.version>
         <FastInfoset.version>1.2.12</FastInfoset.version>
-        <hector-core.version>1.1.4.wso2v1</hector-core.version>
+        <hector-core.version>2.0-0</hector-core.version>
         <high-scale-lib.version>1.1.2</high-scale-lib.version>
         <javacc.version>3.2</javacc.version>
         <org.mortbay.jetty.version>5.1.12</org.mortbay.jetty.version>
@@ -606,7 +606,7 @@
         <hawtbuf.version>1.9</hawtbuf.version>
         <hazelcast.version>3.2.6.wso2v2</hazelcast.version>
         <org.wso2.carbon.metrics.manager.version>1.0.0</org.wso2.carbon.metrics.manager.version>
-        <libthrift.version>0.7.0.wso2v2</libthrift.version>
+        <libthrift.version>0.9.1.wso2v1</libthrift.version>
         <h2.version>1.2.140</h2.version>
         <naming-factory.version>5.5.15</naming-factory.version>
         <naming-resources.version>5.5.15</naming-resources.version>
