@@ -28,7 +28,7 @@ import org.wso2.andes.configuration.enums.MQTTUserAuthenticationScheme;
 import org.wso2.andes.kernel.AndesMessageMetadata;
 import org.wso2.andes.kernel.distruptor.inbound.PubAckHandler;
 import org.wso2.andes.mqtt.MQTTException;
-import org.wso2.andes.mqtt.MQTTUtils;
+import org.wso2.andes.mqtt.utils.MQTTUtils;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -291,10 +291,6 @@ public class ProtocolProcessor implements EventHandler<ValueEvent>, PubAckHandle
         AndesMQTTBridge.onMessagePublished(topic, qos.ordinal(), message, retain,
                 evt.getMessageID(), clientID, this);
 
-        if (retain) {
-            //TODO call the cluster specifc store here
-            // m_storageService.storeRetained(topic, message, qos);
-        }
     }
 
     /**

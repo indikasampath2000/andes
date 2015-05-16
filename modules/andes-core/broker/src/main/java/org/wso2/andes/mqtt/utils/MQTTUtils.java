@@ -15,7 +15,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.wso2.andes.mqtt;
+package org.wso2.andes.mqtt.utils;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -62,7 +62,7 @@ public class MQTTUtils {
      */
     public static AndesMessagePart convertToAndesMessage(byte[] message, long messagID) {
         AndesMessagePart messageBody = new AndesMessagePart();
-        messageBody.setOffSet(0);
+        messageBody.setOffSet(0); //Here we set the offset to 0, but it will be a problem when large messages are sent
         messageBody.setData(message);
         messageBody.setMessageID(messagID);
         messageBody.setDataLength(message.length);
@@ -113,6 +113,7 @@ public class MQTTUtils {
         messageHeader.setTopic(true);
         messageHeader.setDestination(topic);
         messageHeader.setPersistent(true);
+        messageHeader.setRetain(retain);
         messageHeader.setChannelId(publisherID);
         messageHeader.setMessageContentLength(messageContentLength);
         messageHeader.setStorageQueueName(topic);
@@ -141,6 +142,7 @@ public class MQTTUtils {
     public static ByteBuffer getContentFromMetaInformation(AndesContent content)
             throws AndesException {
         ByteBuffer message = ByteBuffer.allocate(content.getContentLength());
+
         try {
             //offset value will always be set to 0 since mqtt doesn't support chunking the messages, always the message
             //will be in the first chunk but in AMQP there will be chunks
