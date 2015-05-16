@@ -606,7 +606,7 @@
         <hawtbuf.version>1.9</hawtbuf.version>
         <hazelcast.version>3.2.6.wso2v2</hazelcast.version>
         <org.wso2.carbon.metrics.manager.version>1.0.0</org.wso2.carbon.metrics.manager.version>
-        <libthrift.version>0.9.1.wso2v1</libthrift.version>
+        <libthrift.version>0.9.2.wso2v1</libthrift.version>
         <h2.version>1.2.140</h2.version>
         <naming-factory.version>5.5.15</naming-factory.version>
         <naming-resources.version>5.5.15</naming-resources.version>

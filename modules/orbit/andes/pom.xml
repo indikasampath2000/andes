@@ -157,14 +157,14 @@
                         </Export-Package>
                         <Import-Package>
                             !org.wso2.andes.*,
-                            org.apache.derby.*,
-                            org.apache.thrift.*;version="[0.7.0,1.0.0)",
+                            !org.apache.derby.*,
+                            org.apache.thrift.*;version="[0.9.wso2v1,1.0)",
                             org.apache.commons.cli.*;version="1.2",
                             org.apache.commons.configuration.*;version="1.6",
                             org.apache.commons.jxpath.*;version="1.3",
                             org.apache.commons.lang.*;version="2.3",
                             org.apache.commons.logging.*,
-                            com.datastax.cassandra.*;version="2.1.3",
+                            com.datastax.cassandra.*;version="2.1.5",
                             com.google.common.util.concurrent;version="[14.0,15)",
                             org.wso2.carbon.andes.authentication.andes,
                             me.prettyprint.hector.api.*;version="2.0-0",
