@@ -188,6 +188,8 @@ public class Andes {
         MessageTracer.trace(ackData.getAcknowledgedMessage().getMessageID(), ackData.getAcknowledgedMessage()
                 .getDestination(), MessageTracer.ACK_RECEIVED_FROM_PROTOCOL);
 
+        inboundEventManager.ackReceived(ackData);
+
         //Adding metrics meter for ack rate
         Meter ackMeter = MetricManager.meter(Level.INFO, MetricsConstants.ACK_RECEIVE_RATE);
         ackMeter.mark();
